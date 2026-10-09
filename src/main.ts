@@ -2,9 +2,12 @@ import './style.css'
 import * as THREE from 'three'
 import { SceneManager, WebGLUnavailableError } from './render/scene'
 import { SphereCloud } from './render/sphereCloud'
+import { GlowCloud } from './render/glowCloud'
+import { makeRadialSprite } from './render/sprite'
 import { phaseShades } from './render/colors'
 import { OrbitalWorkerClient } from './worker/client'
 import { DEFAULTS } from './render/defaults'
+import { COLORMAPS } from './physics/colormaps'
 
 const viewport = document.querySelector<HTMLElement>('#viewport')!
 
@@ -30,7 +33,9 @@ async function boot(): Promise<void> {
   const worker = new Worker(new URL('./worker/orbital.worker.ts', import.meta.url), { type: 'module' })
   const client = new OrbitalWorkerClient(worker)
   const cloud = new SphereCloud(150000)
-  scene.content.add(cloud.mesh)
+  const glow = new GlowCloud(500000, makeRadialSprite())
+  glow.points.visible = false
+  scene.content.add(cloud.mesh, glow.points)
   const nucleus = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshStandardMaterial({ color: 0x333333 }))
   scene.content.add(nucleus)
   scene.start()
@@ -52,6 +57,24 @@ async function boot(): Promise<void> {
     }
     console.log(`N=${count} ready at ${(performance.now() - t0).toFixed(0)} ms`)
   }
+
+  window.addEventListener('keydown', async (e) => {
+    if (e.key === '2') {
+      scene.setMode('glow')
+      scene.setBloom({ strength: DEFAULTS.bloomStrength, radius: DEFAULTS.bloomRadius, threshold: DEFAULTS.bloomThreshold })
+      cloud.mesh.visible = false
+      nucleus.visible = false
+      glow.points.visible = true
+      const r = await client.sample(orbital, 300000, 2)
+      glow.setPointSize(DEFAULTS.pointSizeFactor * fitR)
+      glow.update(r.positions, r.psi, r.maxDensity, COLORMAPS.inferno, DEFAULTS.glowGamma)
+    } else if (e.key === '1') {
+      scene.setMode('spheres')
+      cloud.mesh.visible = true
+      nucleus.visible = true
+      glow.points.visible = false
+    }
+  })
 }
 
 try {
