@@ -10,6 +10,12 @@ after the page loads.
 | --- | --- | --- |
 | ![3dz2 as lit spheres](docs/screenshots/spheres-3dz2.png) | ![3dz2 as a glow cloud](docs/screenshots/glow-3dz2.png) | ![Iron 4s and 3d isosurfaces](docs/screenshots/iso-fe-valence.png) |
 
+## Why this exists
+
+Growing up, it was very difficult for me to visualize how atoms and molecules ACTUALLY
+looked like in chemistry class. This website will help practically see how atoms are
+and learn more about the world around us!
+
 ## Running it
 
 ```bash
