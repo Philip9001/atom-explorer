@@ -3,9 +3,11 @@ import { App } from './app'
 import { Store } from './state'
 import { WebGLUnavailableError } from './render/scene'
 import { createControls } from './ui/controls'
+import { createSidePanel } from './ui/sidePanel'
 
 const viewport = document.querySelector<HTMLElement>('#viewport')!
 const guiHost = document.querySelector<HTMLElement>('#gui')!
+const sideHost = document.querySelector<HTMLElement>('#side')!
 
 function showFatal(message: string): void {
   const div = document.createElement('div')
@@ -19,6 +21,7 @@ try {
   const worker = new Worker(new URL('./worker/orbital.worker.ts', import.meta.url), { type: 'module' })
   const app = new App(viewport, store, worker)
   app.scene.onContextLost = () => showFatal('The graphics context was lost. Reload the page to continue.')
+  createSidePanel(sideHost, store)
   createControls(guiHost, store, {
     renderStill: () => console.info('Render still: not implemented yet'),
     resetCamera: () => app.scene.resetCamera(),
