@@ -32,6 +32,18 @@ export function density(o: Orbital, x: number, y: number, z: number): number {
   return R * R * a * a
 }
 
+/**
+ * Signed magnitude of psi: sqrt(|psi|^2) carrying the sign of the real part's
+ * radial-polar factor. For real orbitals this is psi itself; for complex orbitals it
+ * is R N P_l^|m| (phi-independent), so squaring it gives |psi|^2 and the sign still
+ * separates lobes across radial/polar nodes. Used to build isosurface grids.
+ */
+export function psiSigned(o: Orbital, x: number, y: number, z: number): number {
+  const s = toSpherical(x, y, z)
+  if (o.real) return psiSpherical(o, s.r, s.cosTheta, s.phi)
+  return radialR(o.n, o.l, o.Z, s.r) * angularNorm(o.l, o.m) * legendreP(o.l, Math.abs(o.m), s.cosTheta)
+}
+
 /** Phase angle of psi at a point in [0, 2pi): 0 or pi for real orbitals. */
 export function phase(o: Orbital, x: number, y: number, z: number): number {
   const s = toSpherical(x, y, z)

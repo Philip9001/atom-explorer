@@ -49,8 +49,10 @@ export function sampleInverseCdf(t: InverseCdf, u: number): number {
 export interface SampleResult {
   /** xyz triples in atomic units. */
   positions: Float32Array
-  /** Signed psi at each sample (real part for complex orbitals). */
+  /** Signed psi at each sample (R N P for complex orbitals, i.e. |psi| with the sign of R P). */
   psi: Float32Array
+  /** Phase angle in [0, 2pi): m*phi (+pi where R P < 0) for complex orbitals, 0 or pi for real ones. */
+  phase: Float32Array
   /** Upper bound of |psi|^2 over the orbital, for colormap normalization. */
   maxDensity: number
   /** Box half-size that encloses >99.5% of the probability. */
@@ -88,6 +90,8 @@ export function sampleOrbital(o: Orbital, count: number, seed: number): SampleRe
   const rng = mulberry32(seed)
   const positions = new Float32Array(count * 3)
   const psi = new Float32Array(count)
+  const phase = new Float32Array(count)
+  const TWO_PI = 2 * Math.PI
   for (let i = 0; i < count; i++) {
     const r = sampleInverseCdf(radial, rng())
     const ct = sampleInverseCdf(polar, rng())
@@ -100,6 +104,12 @@ export function sampleOrbital(o: Orbital, count: number, seed: number): SampleRe
     const P = norm * legendreP(o.l, am, ct)
     const A = !o.real || o.m === 0 ? 1 : o.m > 0 ? Math.SQRT2 * Math.cos(am * phi) : Math.SQRT2 * Math.sin(am * phi)
     psi[i] = R * P * A
+    if (o.real) phase[i] = psi[i] >= 0 ? 0 : Math.PI
+    else {
+      let ph = (o.m * phi + (R * P < 0 ? Math.PI : 0)) % TWO_PI
+      if (ph < 0) ph += TWO_PI
+      phase[i] = ph
+    }
   }
-  return { positions, psi, maxDensity, rMax }
+  return { positions, psi, phase, maxDensity, rMax }
 }

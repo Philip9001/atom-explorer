@@ -11,7 +11,7 @@ ctx.onmessage = (ev: MessageEvent<WorkerRequest>) => {
     if (req.type === 'sample') {
       const r = sampleOrbital(req.orbital, req.count, req.seed)
       const res: WorkerResponse = { id: req.id, type: 'sample', ...r }
-      ctx.postMessage(res, [r.positions.buffer, r.psi.buffer])
+      ctx.postMessage(res, [r.positions.buffer, r.psi.buffer, r.phase.buffer])
     } else {
       const grid = buildDensityGrid(req.orbital, req.size)
       const threshold = findThreshold(grid, req.fraction)

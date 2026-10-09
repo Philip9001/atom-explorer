@@ -25,9 +25,11 @@ try {
   const app = new App(viewport, store, worker, { sliceCanvas: side.sliceCanvas })
   app.onUpdate = (info) => side.onUpdate(info)
   app.scene.onContextLost = () => showFatal('The graphics context was lost. Reload the page to continue.')
+  app.client.onError = (m) => showFatal(`The orbital worker failed (${m}). Reload the page to continue.`)
   const actions = {
     renderStill: () => { void app.renderStill({ dof: store.state.mode !== 'glow' }).catch((e) => console.error(e)) },
     resetCamera: () => app.scene.resetCamera(),
+    memoryInfo: () => app.scene.memoryInfo(),
   }
   createControls(guiHost, store, actions)
   installShortcuts(store, actions)

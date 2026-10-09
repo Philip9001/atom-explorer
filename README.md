@@ -28,7 +28,8 @@ Node 22 or newer. Vite 8, TypeScript 6, three 0.186, lil-gui 0.21, Vitest 5.
   d subshell.
 - **Single orbital** (control panel): tick "Single orbital" and set n, l, m
   (n ≤ 7, 0 ≤ l < n, |m| ≤ l). Real orbitals (px, dz², …) are the default; untick
-  "Real orbitals" for complex e^{imφ} harmonics.
+  "Real orbitals" for complex e^{imφ} harmonics, which are φ-symmetric and, in sphere
+  mode, colored by the phase angle mφ as a hue.
 - **Modes**: lit spheres with ambient occlusion, additive glow cloud with bloom and a
   choice of inferno / magma / viridis colormaps, or a marching-cubes isosurface at a
   chosen enclosed probability (default 90%).

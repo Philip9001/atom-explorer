@@ -3,7 +3,7 @@ import type { Store, AppState } from '../state'
 import { MAX_N, clampOrbital } from '../physics/orbital'
 
 /** lil-gui control panel bound to the store. Returns a function that syncs the panel from state. */
-export function createControls(host: HTMLElement, store: Store, actions: { renderStill: () => void; resetCamera: () => void }): { gui: GUI; sync: () => void } {
+export function createControls(host: HTMLElement, store: Store, actions: { renderStill: () => void; resetCamera: () => void; memoryInfo: () => { geometries: number; textures: number } }): { gui: GUI; sync: () => void } {
   const gui = new GUI({ container: host, title: 'Atom Explorer', width: 270 })
   const s: AppState = { ...store.state }
   const bind = <K extends keyof AppState>(key: K) => (v: AppState[K]) => store.set({ [key]: v } as Partial<AppState>)
@@ -57,6 +57,13 @@ export function createControls(host: HTMLElement, store: Store, actions: { rende
 
   gui.add(actions, 'resetCamera').name('Reset camera (R)')
   gui.add(actions, 'renderStill').name('Render still (S)')
+  const mem = { gpu: '' }
+  const memCtl = gui.add(mem, 'gpu').name('GPU memory').disable()
+  setInterval(() => {
+    const m = actions.memoryInfo()
+    mem.gpu = `${m.geometries} geometries, ${m.textures} textures`
+    memCtl.updateDisplay()
+  }, 1000)
 
   for (const f of [glow, iso, overlays]) f.close()
 

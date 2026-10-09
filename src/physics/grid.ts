@@ -1,12 +1,12 @@
 import type { Orbital } from './orbital'
 import { orbitalExtent } from './extent'
-import { psi } from './wavefunction'
+import { psiSigned } from './wavefunction'
 
 export interface DensityGrid {
   size: number
   /** Box half-size; cells cover [-rMax, rMax]^3. */
   rMax: number
-  /** Signed psi at cell centers, size^3 values, x fastest. */
+  /** Signed sqrt(|psi|^2) at cell centers (see psiSigned), size^3 values, x fastest. */
   psi: Float32Array
 }
 
@@ -20,7 +20,7 @@ export function buildDensityGrid(o: Orbital, size: number): DensityGrid {
     const z = -rMax + (k + 0.5) * h
     for (let j = 0; j < size; j++) {
       const y = -rMax + (j + 0.5) * h
-      for (let i = 0; i < size; i++) out[gridIndex(size, i, j, k)] = psi(o, -rMax + (i + 0.5) * h, y, z)
+      for (let i = 0; i < size; i++) out[gridIndex(size, i, j, k)] = psiSigned(o, -rMax + (i + 0.5) * h, y, z)
     }
   }
   return { size, rMax, psi: out }

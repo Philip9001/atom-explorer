@@ -11,6 +11,7 @@ import { paintSlice } from './ui/sliceInset'
 import { renderStillBlob, downloadBlob } from './render/still'
 import { orbitalLabel } from './physics/orbital'
 import { elementByZ } from './physics/elements'
+import { singleFlight } from './util/singleFlight'
 import { makeRadialSprite } from './render/sprite'
 import { phaseShades } from './render/colors'
 import { DEFAULTS } from './render/defaults'
@@ -179,7 +180,7 @@ export class App {
     if (s.mode === 'glow') {
       this.glow.updateMany(results.map((r) => ({ positions: r.positions, psi: r.psi, maxDensity: r.maxDensity })), COLORMAPS[s.colormap], s.gamma)
     } else {
-      this.spheres.updateMany(results.map((r, i) => ({ positions: r.positions, psi: r.psi, ...phaseShades(parts[i].color) })), this.sphereRadius())
+      this.spheres.updateMany(results.map((r, i) => ({ positions: r.positions, psi: r.psi, ...phaseShades(parts[i].color), phase: s.real ? undefined : r.phase })), this.sphereRadius())
     }
   }
 
@@ -188,7 +189,17 @@ export class App {
   }
 
   /** High-quality still: 2x samples, 2x pixel ratio, stronger AO, optional DOF; restores the live view after. */
-  async renderStill(opts: { dof?: boolean; download?: boolean } = {}): Promise<Blob> {
+  renderStill(opts: { dof?: boolean; download?: boolean } = {}): Promise<Blob> {
+    // One still at a time: a second press while rendering joins the first instead of doubling the pixel ratio.
+    if (!this.stillFlight) this.stillFlight = singleFlight(() => this.renderStillNow(this.stillOpts))
+    this.stillOpts = opts
+    return this.stillFlight()
+  }
+
+  private stillFlight: (() => Promise<Blob>) | null = null
+  private stillOpts: { dof?: boolean; download?: boolean } = {}
+
+  private async renderStillNow(opts: { dof?: boolean; download?: boolean }): Promise<Blob> {
     const s = this.store.state
     const parts = deriveParts(s)
     const gen = ++this.generation

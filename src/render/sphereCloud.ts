@@ -1,6 +1,15 @@
 import * as THREE from 'three'
 
-export interface SpherePart { positions: Float32Array; psi: Float32Array; pos: THREE.Color; neg: THREE.Color }
+export interface SpherePart {
+  positions: Float32Array
+  psi: Float32Array
+  pos: THREE.Color
+  neg: THREE.Color
+  /** When present, instances are colored by hue = phase / 2pi instead of the two phase shades. */
+  phase?: Float32Array
+}
+
+const hueColor = new THREE.Color()
 
 /**
  * A point cloud drawn as lit, instanced low-poly spheres. Instance matrices and
@@ -34,7 +43,7 @@ export class SphereCloud {
     const m = this.mesh.instanceMatrix.array as Float32Array
     const c = this.mesh.instanceColor!.array as Float32Array
     let i = 0
-    outer: for (const { positions, psi, pos, neg } of parts) {
+    outer: for (const { positions, psi, pos, neg, phase } of parts) {
       const n = Math.min(psi.length, positions.length / 3)
       for (let k = 0; k < n; k++, i++) {
         if (i >= this.capacity) break outer
@@ -43,7 +52,7 @@ export class SphereCloud {
         m[o + 4] = 0; m[o + 5] = radius; m[o + 6] = 0; m[o + 7] = 0
         m[o + 8] = 0; m[o + 9] = 0; m[o + 10] = radius; m[o + 11] = 0
         m[o + 12] = positions[3 * k]; m[o + 13] = positions[3 * k + 1]; m[o + 14] = positions[3 * k + 2]; m[o + 15] = 1
-        const col = psi[k] >= 0 ? pos : neg
+        const col = phase ? hueColor.setHSL(phase[k] / (2 * Math.PI), 0.65, 0.5) : psi[k] >= 0 ? pos : neg
         c[3 * i] = col.r; c[3 * i + 1] = col.g; c[3 * i + 2] = col.b
       }
     }

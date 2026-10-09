@@ -31,3 +31,17 @@ describe('sampleOrbital', () => {
     for (let i = 0; i < 1000; i++) expect(a.psi[i] * a.psi[i]).toBeLessThanOrEqual(a.maxDensity * 1.0001)
   })
 })
+
+describe('sampleOrbital phase', () => {
+  it('returns the phase angle m*phi for complex orbitals and 0/pi for real ones', () => {
+    const c = sampleOrbital({ n: 2, l: 1, m: 1, Z: 1, real: false }, 2000, 3)
+    expect(c.phase.length).toBe(2000)
+    for (let i = 0; i < 2000; i++) {
+      const phi = Math.atan2(c.positions[3 * i + 1], c.positions[3 * i])
+      const expected = ((phi % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+      expect(Math.abs(c.phase[i] - expected)).toBeLessThan(1e-4)
+    }
+    const r = sampleOrbital({ n: 2, l: 1, m: 0, Z: 1, real: true }, 500, 3)
+    for (let i = 0; i < 500; i++) expect(r.phase[i]).toBeCloseTo(r.psi[i] >= 0 ? 0 : Math.PI, 5)
+  })
+})

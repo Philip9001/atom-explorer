@@ -9,6 +9,7 @@ export type SampleResponse = {
   type: 'sample'
   positions: Float32Array
   psi: Float32Array
+  phase: Float32Array
   maxDensity: number
   rMax: number
 }
