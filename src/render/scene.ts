@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { buildComposer, type ComposerBundle, type ComposerOptions, type RenderMode } from './postprocessing'
+import type { Pass } from 'three/addons/postprocessing/Pass.js'
 
 export type Theme = 'light' | 'dark'
 
@@ -138,6 +139,18 @@ export class SceneManager {
   }
 
   setExposure(v: number): void { this.renderer.toneMappingExposure = v }
+
+  get aoIntensity(): number { return this.opts.aoIntensity }
+
+  /** Insert a pass just before the final OutputPass (used for the still's depth of field). */
+  insertPassBeforeOutput(pass: Pass): void {
+    const passes = this.bundle.composer.passes
+    const index = passes.indexOf(this.bundle.output)
+    this.bundle.composer.insertPass(pass, index < 0 ? passes.length : index)
+    pass.setSize(this.opts.width, this.opts.height)
+  }
+
+  removePass(pass: Pass): void { this.bundle.composer.removePass(pass) }
 
   /** Place the camera to frame a sphere of `radius` about the origin. */
   fitCamera(radius: number): void {

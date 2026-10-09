@@ -24,7 +24,7 @@ try {
   app.onUpdate = (info) => side.onUpdate(info)
   app.scene.onContextLost = () => showFatal('The graphics context was lost. Reload the page to continue.')
   createControls(guiHost, store, {
-    renderStill: () => console.info('Render still: not implemented yet'),
+    renderStill: () => { void app.renderStill({ dof: store.state.mode !== 'glow' }).catch((e) => console.error(e)) },
     resetCamera: () => app.scene.resetCamera(),
   })
   ;(window as unknown as { __app: App }).__app = app

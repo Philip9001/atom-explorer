@@ -8,6 +8,9 @@ import { BohrView } from './render/bohr'
 import { sliceDensity } from './physics/slice'
 import { groundStateConfiguration, shellCounts } from './physics/configuration'
 import { paintSlice } from './ui/sliceInset'
+import { renderStillBlob, downloadBlob } from './render/still'
+import { orbitalLabel } from './physics/orbital'
+import { elementByZ } from './physics/elements'
 import { makeRadialSprite } from './render/sprite'
 import { phaseShades } from './render/colors'
 import { DEFAULTS } from './render/defaults'
@@ -182,6 +185,31 @@ export class App {
 
   private showGrids(parts: OrbitalPart[], grids: GridResponse[]): void {
     this.iso.update(grids.map((g, i) => ({ key: parts[i].group, positions: g.positions, normals: g.normals, signs: g.signs, color: parts[i].color })))
+  }
+
+  /** High-quality still: 2x samples, 2x pixel ratio, stronger AO, optional DOF; restores the live view after. */
+  async renderStill(opts: { dof?: boolean; download?: boolean } = {}): Promise<Blob> {
+    const s = this.store.state
+    const parts = deriveParts(s)
+    const gen = ++this.generation
+    this.client.cancelAll()
+    if (s.mode !== 'iso') {
+      const total = (s.mode === 'glow' ? s.glowCount : s.sphereCount) * 2
+      const budget = Math.min(total, s.mode === 'glow' ? this.glow.capacity : this.spheres.capacity)
+      const results = await Promise.all(parts.map((p) => this.client.sample(p.orbital, Math.max(MIN_PART_COUNT, Math.round(budget * p.weight)), 1)))
+      if (gen !== this.generation) throw new Error('cancelled')
+      this.showSamples(parts, results)
+    }
+    try {
+      const blob = await renderStillBlob(this.scene, { scale: 2, aoIntensity: s.aoIntensity * 1.5, dof: opts.dof ?? false })
+      if (opts.download !== false) {
+        const label = s.single ? orbitalLabel({ n: s.n, l: s.l, m: s.m, real: s.real }) : (elementByZ(s.Z)?.symbol ?? `Z${s.Z}`)
+        downloadBlob(blob, `atom-${label}-${s.mode}.png`)
+      }
+      return blob
+    } finally {
+      if (gen === this.generation) void this.rebuild()
+    }
   }
 
   dispose(): void {
