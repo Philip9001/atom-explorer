@@ -1,7 +1,7 @@
 # Atom Explorer
 
-An interactive 3D electron-orbital explorer that runs in the browser. Pick an element
-(hydrogen through krypton) or choose a single hydrogen orbital by its quantum numbers,
+An interactive 3D electron-orbital explorer that runs in the browser. Pick any element
+(hydrogen through oganesson) or choose a single hydrogen orbital by its quantum numbers,
 then look at the probability cloud as lit spheres, as a glowing heat-map cloud, or as a
 smooth isosurface. Everything is computed in the browser; there are no network calls
 after the page loads.
@@ -61,9 +61,9 @@ Everything lives in `src/physics/`, is framework-free, and is covered by Vitest.
   right, sizes are approximate, and the ordering of subshells is only as good as the
   configuration table. The app says so in its info panel.
 - **Electron configurations** come from the Madelung (n + l) rule plus an exceptions
-  table (Cr and Cu for Z ≤ 36; entries for Nb, Mo, Ru, Rh, Pd, Ag, Pt, Au are already
-  present for a later range extension). All 36 configurations are unit-tested against
-  a hard-coded list. Within a subshell, electrons fill real orbitals Hund-style, and a
+  table from the NIST ground states (Cr, Cu, Nb, Mo, Ru, Rh, Pd, Ag, La, Ce, Gd, Pt,
+  Au, Ac, Th, Pa, U, Np, Cm, Lr). All 118 configurations are unit-tested against a
+  hard-coded list. Within a subshell, electrons fill real orbitals Hund-style, and a
   subshell's cloud samples each occupied orbital in proportion to its electrons, so a
   filled subshell is spherically symmetric.
 - **Sampling.** The density of one hydrogenic orbital factorizes into radial, polar and
@@ -90,7 +90,7 @@ Measured on this machine (NVIDIA RTX 4060 Ti, headless Chromium via ANGLE/Vulkan
 | Isosurface, 96³ and 128³ grids | 60 |
 
 First preview after an orbital change: 139 ms on a cold start (includes worker start),
-under 10 ms afterwards; a full 50k-sphere set follows within ~30 ms; a 96³ isosurface in
+under 10 ms afterwards for a single orbital and 165 ms for oganesson (59 orbitals); a full 50k-sphere set follows within ~30 ms; a 96³ isosurface in
 ~330 ms. Fifty mode/orbital switches leave `renderer.info.memory.geometries` unchanged.
 Integrated-GPU numbers have not been measured.
 

@@ -1,4 +1,4 @@
-import { ELEMENTS, type Element } from '../physics/elements'
+import { ELEMENTS, periodicTableCell, type Element } from '../physics/elements'
 
 /** 18-column periodic table of the supported elements; each cell is a button. */
 export function renderPeriodicTable(host: HTMLElement, onPick: (Z: number) => void): { markSelected: (Z: number | null) => void } {
@@ -25,8 +25,9 @@ function cell(e: Element, table: HTMLElement, onPick: (Z: number) => void): HTML
   b.className = `pcell block-${e.block}`
   b.dataset.z = String(e.Z)
   b.title = `${e.name} (Z = ${e.Z})`
-  b.style.gridColumn = String(e.group)
-  b.style.gridRow = String(e.period)
+  const cell = periodicTableCell(e)
+  b.style.gridColumn = String(cell.col)
+  b.style.gridRow = String(cell.row)
   b.innerHTML = `<span class="z">${e.Z}</span><span class="sym">${e.symbol}</span>`
   b.addEventListener('click', () => onPick(e.Z))
   table.appendChild(b)

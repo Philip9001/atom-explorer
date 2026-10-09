@@ -10,7 +10,7 @@ describe('phaseShades', () => {
     expect(pos.getHSL(hsl).l).toBeGreaterThan(l0)
     expect(neg.getHSL(hsl).l).toBeLessThan(l0)
   })
-  it('has ten distinct palette colors', () => {
-    expect(new Set(SUBSHELL_PALETTE).size).toBe(10)
+  it('has twenty distinct palette colors (oganesson has 19 subshells)', () => {
+    expect(new Set(SUBSHELL_PALETTE).size).toBe(20)
   })
 })

@@ -15,8 +15,8 @@ export const MADELUNG_ORDER: readonly { n: number; l: number }[] = (() => {
 
 /**
  * Elements whose ground state breaks the Madelung rule (NIST Atomic Spectra
- * Database ground levels): [n, l, electrons] overrides. Z <= 36 needs only Cr and Cu;
- * the heavier d-block entries are included for a later range extension.
+ * Database ground levels): [n, l, electrons] overrides applied after the aufbau fill.
+ * d-block: Cr, Cu, Nb, Mo, Ru, Rh, Pd, Ag, Pt, Au. f-block: La, Ce, Gd, Ac, Th, Pa, U, Np, Cm, Lr.
  */
 const EXCEPTIONS: Record<number, [number, number, number][]> = {
   24: [[4, 0, 1], [3, 2, 5]],
@@ -27,8 +27,18 @@ const EXCEPTIONS: Record<number, [number, number, number][]> = {
   45: [[5, 0, 1], [4, 2, 8]],
   46: [[5, 0, 0], [4, 2, 10]],
   47: [[5, 0, 1], [4, 2, 10]],
+  57: [[4, 3, 0], [5, 2, 1]],
+  58: [[4, 3, 1], [5, 2, 1]],
+  64: [[4, 3, 7], [5, 2, 1]],
   78: [[6, 0, 1], [5, 2, 9]],
   79: [[6, 0, 1], [5, 2, 10]],
+  89: [[5, 3, 0], [6, 2, 1]],
+  90: [[5, 3, 0], [6, 2, 2]],
+  91: [[5, 3, 2], [6, 2, 1]],
+  92: [[5, 3, 3], [6, 2, 1]],
+  93: [[5, 3, 4], [6, 2, 1]],
+  96: [[5, 3, 7], [6, 2, 1]],
+  103: [[6, 2, 0], [7, 1, 1]],
 }
 
 export function groundStateConfiguration(Z: number): Subshell[] {
@@ -45,7 +55,8 @@ export function groundStateConfiguration(Z: number): Subshell[] {
     if (s) s.electrons = e
     else cfg.push({ n, l, electrons: e })
   }
-  return cfg.filter((s) => s.electrons > 0)
+  const order = (x: Subshell) => MADELUNG_ORDER.findIndex((o) => o.n === x.n && o.l === x.l)
+  return cfg.filter((s) => s.electrons > 0).sort((a, b) => order(a) - order(b))
 }
 
 export function configurationString(cfg: Subshell[]): string {
