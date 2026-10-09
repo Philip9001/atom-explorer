@@ -1,6 +1,8 @@
 import './style.css'
 import { App } from './app'
-import { Store } from './state'
+import { Store, DEFAULT_STATE } from './state'
+import { stateFromSearch, searchFromState } from './ui/urlState'
+import { installShortcuts } from './ui/shortcuts'
 import { WebGLUnavailableError } from './render/scene'
 import { createControls } from './ui/controls'
 import { createSidePanel } from './ui/sidePanel'
@@ -17,15 +19,22 @@ function showFatal(message: string): void {
 }
 
 try {
-  const store = new Store()
+  const store = new Store(stateFromSearch(location.search, DEFAULT_STATE))
   const worker = new Worker(new URL('./worker/orbital.worker.ts', import.meta.url), { type: 'module' })
   const side = createSidePanel(sideHost, store)
   const app = new App(viewport, store, worker, { sliceCanvas: side.sliceCanvas })
   app.onUpdate = (info) => side.onUpdate(info)
   app.scene.onContextLost = () => showFatal('The graphics context was lost. Reload the page to continue.')
-  createControls(guiHost, store, {
+  const actions = {
     renderStill: () => { void app.renderStill({ dof: store.state.mode !== 'glow' }).catch((e) => console.error(e)) },
     resetCamera: () => app.scene.resetCamera(),
+  }
+  createControls(guiHost, store, actions)
+  installShortcuts(store, actions)
+  let urlTimer = 0
+  store.subscribe((s) => {
+    clearTimeout(urlTimer)
+    urlTimer = window.setTimeout(() => history.replaceState(null, '', `${location.pathname}${searchFromState(s)}`), 300)
   })
   ;(window as unknown as { __app: App }).__app = app
 } catch (e) {
