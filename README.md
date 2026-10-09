@@ -1,5 +1,7 @@
 # Atom Explorer
 
+**Live site: https://atom-explorer-ten.vercel.app**
+
 An interactive 3D electron-orbital explorer that runs in the browser. Pick any element
 (hydrogen through oganesson) or choose a single hydrogen orbital by its quantum numbers,
 then look at the probability cloud as lit spheres, as a glowing heat-map cloud, or as a
@@ -99,6 +101,25 @@ First preview after an orbital change: 139 ms on a cold start (includes worker s
 under 10 ms afterwards for a single orbital and 165 ms for oganesson (59 orbitals); a full 50k-sphere set follows within ~30 ms; a 96³ isosurface in
 ~330 ms. Fifty mode/orbital switches leave `renderer.info.memory.geometries` unchanged.
 Integrated-GPU numbers have not been measured.
+
+## Deployment
+
+The site is hosted on Vercel as a static Vite build (`tsc && vite build`, output in
+`dist/`). There is no server side: the physics runs in a Web Worker in your browser, so
+the only thing deployed is static files.
+
+- The GitHub repository is connected to the Vercel project, so every push to `master`
+  deploys to production automatically, and every other branch gets a preview URL.
+- To deploy by hand from a checkout, install the Vercel CLI and run:
+
+```bash
+npm i -g vercel
+vercel          # preview deployment on a unique URL
+vercel --prod   # production deployment
+```
+
+The first run links the folder to the Vercel project and writes a `.vercel/` directory,
+which is ignored by git.
 
 ## Licenses and data
 
