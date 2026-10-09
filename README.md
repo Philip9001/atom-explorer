@@ -96,7 +96,7 @@ Integrated-GPU numbers have not been measured.
 
 ## Licenses and data
 
-- Code: original, in this repository.
+- Code: original, in this repository, released under the MIT License (see `LICENSE`).
 - Element table (`src/physics/elements.ts`): typed by hand; atomic numbers, groups,
   periods, blocks and the standard CPK display colors are facts, not copied data files.
 - Colormaps: inferno, magma and viridis by Nathaniel J. Smith, Stefan van der Walt and
