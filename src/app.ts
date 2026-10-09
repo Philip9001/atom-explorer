@@ -2,11 +2,12 @@ import * as THREE from 'three'
 import { SceneManager } from './render/scene'
 import { SphereCloud } from './render/sphereCloud'
 import { GlowCloud } from './render/glowCloud'
+import { IsoSurface } from './render/isosurface'
 import { makeRadialSprite } from './render/sprite'
 import { phaseShades } from './render/colors'
 import { DEFAULTS } from './render/defaults'
 import { OrbitalWorkerClient } from './worker/client'
-import type { SampleResponse } from './worker/protocol'
+import type { GridResponse, SampleResponse } from './worker/protocol'
 import { COLORMAPS } from './physics/colormaps'
 import type { Orbital } from './physics/orbital'
 import { Store, type AppState, type StateKey } from './state'
@@ -40,6 +41,7 @@ export class App {
   readonly client: OrbitalWorkerClient
   readonly spheres: SphereCloud
   readonly glow: GlowCloud
+  readonly iso: IsoSurface
   readonly nucleus: THREE.Mesh
   /** Visible cloud radius used for sphere size, point size and framing. */
   fitRadius = 1
@@ -53,8 +55,9 @@ export class App {
     this.client = new OrbitalWorkerClient(worker)
     this.spheres = new SphereCloud(150000)
     this.glow = new GlowCloud(500000, makeRadialSprite())
+    this.iso = new IsoSurface()
     this.nucleus = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 }))
-    this.scene.content.add(this.spheres.mesh, this.glow.points, this.nucleus)
+    this.scene.content.add(this.spheres.mesh, this.glow.points, this.iso.group, this.nucleus)
     this.applyLook(Object.keys(store.state) as StateKey[])
     store.subscribe((_s, changed) => this.onChange(changed))
     this.scene.start()
@@ -79,6 +82,7 @@ export class App {
       this.scene.setMode(s.mode)
       this.spheres.mesh.visible = s.mode === 'spheres'
       this.glow.points.visible = s.mode === 'glow'
+      this.iso.group.visible = s.mode === 'iso'
       this.nucleus.visible = s.showNucleus && s.mode !== 'glow'
     }
     if (has('theme')) this.scene.setTheme(s.theme)
@@ -107,12 +111,20 @@ export class App {
     this.t0 = performance.now()
     const total = s.mode === 'glow' ? s.glowCount : s.sphereCount
     try {
-      for (const budget of [PREVIEW_COUNT, total]) {
+      // The preview also serves iso mode: it frames the camera while the grid is computed.
+      const budgets = s.mode === 'iso' ? [PREVIEW_COUNT] : [PREVIEW_COUNT, total]
+      for (const budget of budgets) {
         const results = await Promise.all(parts.map((p) => this.client.sample(p.orbital, Math.max(MIN_PART_COUNT, Math.round(budget * p.weight)), 1)))
         if (gen !== this.generation) return
         if (budget === PREVIEW_COUNT) this.frame(results, reframe)
-        this.showSamples(parts, results)
+        if (s.mode !== 'iso') this.showSamples(parts, results)
         if (import.meta.env.DEV) console.debug(`[atom] ${budget} samples shown at ${(performance.now() - this.t0).toFixed(0)} ms`)
+      }
+      if (s.mode === 'iso') {
+        const grids = await Promise.all(parts.map((p) => this.client.grid(p.orbital, s.gridSize, s.isoFraction)))
+        if (gen !== this.generation) return
+        this.showGrids(parts, grids)
+        if (import.meta.env.DEV) console.debug(`[atom] isosurface shown at ${(performance.now() - this.t0).toFixed(0)} ms`)
       }
     } catch (e) {
       if ((e as Error).message !== 'cancelled') console.error(e)
@@ -142,7 +154,15 @@ export class App {
     }
   }
 
+  private showGrids(parts: OrbitalPart[], grids: GridResponse[]): void {
+    // Single part for now; Task 16 shows one surface per subshell.
+    const { pos, neg } = phaseShades(parts[0].color)
+    const g = grids[0]
+    this.iso.update(g.positions, g.normals, g.signs, pos, neg)
+  }
+
   dispose(): void {
+    this.iso.dispose()
     this.client.dispose()
     this.spheres.dispose()
     this.glow.dispose()
