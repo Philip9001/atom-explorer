@@ -2,12 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>atom-explorer</title>
+    <title>Atom Explorer</title>
+    <meta name="description" content="Interactive 3D electron orbital explorer: hydrogen-like orbitals for elements 1–36 as sphere clouds, glow clouds and isosurfaces." />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <main id="viewport"></main>
+      <aside id="side"></aside>
+      <div id="gui"></div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
