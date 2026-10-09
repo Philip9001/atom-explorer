@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { colormapLookup } from '../physics/colormaps'
 
+export interface GlowPart { positions: Float32Array; psi: Float32Array; maxDensity: number }
+
 /**
  * Additive-blended point cloud colored by local density through a heat colormap.
  * Positions and psi are cached so the colormap/gamma can change without resampling.
@@ -13,7 +15,8 @@ export class GlowCloud {
   private positionAttr: THREE.BufferAttribute
   private colorAttr: THREE.BufferAttribute
   private psi: Float32Array | null = null
-  private maxDensity = 1
+  /** Per-point 1/maxDensity, so parts from different orbitals are each normalized to their own peak. */
+  private invMax: Float32Array | null = null
   private count = 0
   private brightness = 1
 
@@ -41,23 +44,38 @@ export class GlowCloud {
   }
 
   update(positions: Float32Array, psi: Float32Array, maxDensity: number, map: Float32Array, gamma: number): void {
-    const n = Math.min(this.capacity, psi.length, positions.length / 3)
-    ;(this.positionAttr.array as Float32Array).set(positions.subarray(0, n * 3))
+    this.updateMany([{ positions, psi, maxDensity }], map, gamma)
+  }
+
+  /** Several sample sets concatenated; each is normalized by its own maxDensity. */
+  updateMany(parts: GlowPart[], map: Float32Array, gamma: number): void {
+    const total = Math.min(this.capacity, parts.reduce((a, p) => a + p.psi.length, 0))
+    const pa = this.positionAttr.array as Float32Array
+    const psi = new Float32Array(total)
+    const invMax = new Float32Array(total)
+    let i = 0
+    for (const p of parts) {
+      const n = Math.min(p.psi.length, total - i)
+      if (n <= 0) break
+      pa.set(p.positions.subarray(0, n * 3), i * 3)
+      psi.set(p.psi.subarray(0, n), i)
+      invMax.fill(p.maxDensity > 0 ? 1 / p.maxDensity : 0, i, i + n)
+      i += n
+    }
     this.positionAttr.needsUpdate = true
     this.psi = psi
-    this.maxDensity = maxDensity
-    this.setCount(n)
+    this.invMax = invMax
+    this.setCount(total)
     this.setColormap(map, gamma)
     this.geometry.computeBoundingSphere()
   }
 
   /** Recolor from cached psi: t = (psi^2 / maxDensity)^gamma through the LUT. */
   setColormap(map: Float32Array, gamma: number): void {
-    if (!this.psi) return
+    if (!this.psi || !this.invMax) return
     const c = this.colorAttr.array as Float32Array
-    const inv = this.maxDensity > 0 ? 1 / this.maxDensity : 0
     for (let i = 0; i < this.count; i++) {
-      const d = this.psi[i] * this.psi[i] * inv
+      const d = this.psi[i] * this.psi[i] * this.invMax[i]
       colormapLookup(map, Math.pow(d, gamma), c, 3 * i)
     }
     this.colorAttr.needsUpdate = true

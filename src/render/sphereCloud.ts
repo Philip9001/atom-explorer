@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 
+export interface SpherePart { positions: Float32Array; psi: Float32Array; pos: THREE.Color; neg: THREE.Color }
+
 /**
  * A point cloud drawn as lit, instanced low-poly spheres. Instance matrices and
  * colors are written straight into the attribute arrays (no setMatrixAt loop).
@@ -23,23 +25,32 @@ export class SphereCloud {
   }
 
   update(positions: Float32Array, psi: Float32Array, pos: THREE.Color, neg: THREE.Color, radius: number): void {
-    const n = Math.min(this.capacity, psi.length, positions.length / 3)
+    this.updateMany([{ positions, psi, pos, neg }], radius)
+  }
+
+  /** Several sample sets, each with its own phase color pair, concatenated into the one mesh. */
+  updateMany(parts: SpherePart[], radius: number): void {
     this.radius = radius
     const m = this.mesh.instanceMatrix.array as Float32Array
     const c = this.mesh.instanceColor!.array as Float32Array
-    for (let i = 0; i < n; i++) {
-      const o = i * 16
-      m[o] = radius; m[o + 1] = 0; m[o + 2] = 0; m[o + 3] = 0
-      m[o + 4] = 0; m[o + 5] = radius; m[o + 6] = 0; m[o + 7] = 0
-      m[o + 8] = 0; m[o + 9] = 0; m[o + 10] = radius; m[o + 11] = 0
-      m[o + 12] = positions[3 * i]; m[o + 13] = positions[3 * i + 1]; m[o + 14] = positions[3 * i + 2]; m[o + 15] = 1
-      const col = psi[i] >= 0 ? pos : neg
-      c[3 * i] = col.r; c[3 * i + 1] = col.g; c[3 * i + 2] = col.b
+    let i = 0
+    outer: for (const { positions, psi, pos, neg } of parts) {
+      const n = Math.min(psi.length, positions.length / 3)
+      for (let k = 0; k < n; k++, i++) {
+        if (i >= this.capacity) break outer
+        const o = i * 16
+        m[o] = radius; m[o + 1] = 0; m[o + 2] = 0; m[o + 3] = 0
+        m[o + 4] = 0; m[o + 5] = radius; m[o + 6] = 0; m[o + 7] = 0
+        m[o + 8] = 0; m[o + 9] = 0; m[o + 10] = radius; m[o + 11] = 0
+        m[o + 12] = positions[3 * k]; m[o + 13] = positions[3 * k + 1]; m[o + 14] = positions[3 * k + 2]; m[o + 15] = 1
+        const col = psi[k] >= 0 ? pos : neg
+        c[3 * i] = col.r; c[3 * i + 1] = col.g; c[3 * i + 2] = col.b
+      }
     }
-    this.mesh.count = n
+    this.mesh.count = i
     this.mesh.instanceMatrix.needsUpdate = true
     this.mesh.instanceColor!.needsUpdate = true
-    const wanted: 1 | 2 = n > 50000 ? 1 : 2
+    const wanted: 1 | 2 = i > 50000 ? 1 : 2
     if (wanted !== this.detail) this.setDetail(wanted)
   }
 

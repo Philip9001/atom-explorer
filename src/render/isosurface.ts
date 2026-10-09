@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { phaseShades } from './colors'
 
 function makeMaterial(): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({
@@ -53,5 +54,41 @@ export class IsoSurface {
 
   dispose(): void {
     for (const m of [this.positive, this.negative]) { m.geometry.dispose(); m.material.dispose() }
+  }
+}
+
+export interface IsoPart { key: string; positions: Float32Array; normals: Float32Array; signs: Int8Array; color: string }
+
+/** One IsoSurface per key (subshell); surfaces whose key disappears are disposed. */
+export class IsoSurfaceSet {
+  readonly group = new THREE.Group()
+  readonly surfaces = new Map<string, IsoSurface>()
+
+  update(parts: IsoPart[]): void {
+    const keep = new Set(parts.map((p) => p.key))
+    for (const [key, surf] of this.surfaces) {
+      if (!keep.has(key)) {
+        this.group.remove(surf.group)
+        surf.dispose()
+        this.surfaces.delete(key)
+      }
+    }
+    for (const p of parts) {
+      let surf = this.surfaces.get(p.key)
+      if (!surf) {
+        surf = new IsoSurface()
+        this.surfaces.set(p.key, surf)
+        this.group.add(surf.group)
+      }
+      const { pos, neg } = phaseShades(p.color)
+      surf.update(p.positions, p.normals, p.signs, pos, neg)
+    }
+  }
+
+  setOpacity(o: number): void { for (const s of this.surfaces.values()) s.setOpacity(o) }
+
+  dispose(): void {
+    for (const s of this.surfaces.values()) s.dispose()
+    this.surfaces.clear()
   }
 }

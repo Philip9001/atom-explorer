@@ -2,22 +2,16 @@ import * as THREE from 'three'
 import { SceneManager } from './render/scene'
 import { SphereCloud } from './render/sphereCloud'
 import { GlowCloud } from './render/glowCloud'
-import { IsoSurface } from './render/isosurface'
+import { IsoSurfaceSet } from './render/isosurface'
 import { makeRadialSprite } from './render/sprite'
 import { phaseShades } from './render/colors'
 import { DEFAULTS } from './render/defaults'
 import { OrbitalWorkerClient } from './worker/client'
 import type { GridResponse, SampleResponse } from './worker/protocol'
 import { COLORMAPS } from './physics/colormaps'
-import type { Orbital } from './physics/orbital'
-import { Store, type AppState, type StateKey } from './state'
-
-/** One orbital contributing to the view, with its color and share of the sample budget. */
-export interface OrbitalPart {
-  orbital: Orbital
-  color: string
-  weight: number
-}
+import { deriveParts, isoParts } from './parts'
+import { Store, type StateKey } from './state'
+import type { OrbitalPart } from './parts'
 
 const PREVIEW_COUNT = 5000
 const MIN_PART_COUNT = 500
@@ -41,7 +35,7 @@ export class App {
   readonly client: OrbitalWorkerClient
   readonly spheres: SphereCloud
   readonly glow: GlowCloud
-  readonly iso: IsoSurface
+  readonly iso: IsoSurfaceSet
   readonly nucleus: THREE.Mesh
   /** Visible cloud radius used for sphere size, point size and framing. */
   fitRadius = 1
@@ -55,7 +49,7 @@ export class App {
     this.client = new OrbitalWorkerClient(worker)
     this.spheres = new SphereCloud(150000)
     this.glow = new GlowCloud(500000, makeRadialSprite())
-    this.iso = new IsoSurface()
+    this.iso = new IsoSurfaceSet()
     this.nucleus = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 }))
     this.scene.content.add(this.spheres.mesh, this.glow.points, this.iso.group, this.nucleus)
     this.applyLook(Object.keys(store.state) as StateKey[])
@@ -64,10 +58,6 @@ export class App {
     void this.rebuild()
   }
 
-  /** Orbitals to draw for the current state. Single mode: one orbital with Z = 1 (hydrogen). */
-  deriveParts(s: AppState): OrbitalPart[] {
-    return [{ orbital: { n: s.n, l: s.l, m: s.m, Z: 1, real: s.real }, color: '#2a9d8f', weight: 1 }]
-  }
 
   private onChange(changed: StateKey[]): void {
     this.applyLook(changed)
@@ -104,7 +94,7 @@ export class App {
     const gen = ++this.generation
     this.client.cancelAll()
     const s = this.store.state
-    const parts = this.deriveParts(s)
+    const parts = deriveParts(s)
     const key = parts.map((p) => JSON.stringify(p.orbital)).join('|')
     const reframe = key !== this.currentOrbitalKey
     this.currentOrbitalKey = key
@@ -121,9 +111,10 @@ export class App {
         if (import.meta.env.DEV) console.debug(`[atom] ${budget} samples shown at ${(performance.now() - this.t0).toFixed(0)} ms`)
       }
       if (s.mode === 'iso') {
-        const grids = await Promise.all(parts.map((p) => this.client.grid(p.orbital, s.gridSize, s.isoFraction)))
+        const ip = isoParts(parts)
+        const grids = await Promise.all(ip.map((p) => this.client.grid(p.orbital, s.gridSize, s.isoFraction)))
         if (gen !== this.generation) return
-        this.showGrids(parts, grids)
+        this.showGrids(ip, grids)
         if (import.meta.env.DEV) console.debug(`[atom] isosurface shown at ${(performance.now() - this.t0).toFixed(0)} ms`)
       }
     } catch (e) {
@@ -144,21 +135,14 @@ export class App {
   private showSamples(parts: OrbitalPart[], results: SampleResponse[]): void {
     const s = this.store.state
     if (s.mode === 'glow') {
-      const merged = mergeSamples(results)
-      this.glow.update(merged.positions, merged.psi, merged.maxDensity, COLORMAPS[s.colormap], s.gamma)
+      this.glow.updateMany(results.map((r) => ({ positions: r.positions, psi: r.psi, maxDensity: r.maxDensity })), COLORMAPS[s.colormap], s.gamma)
     } else {
-      const merged = mergeSamples(results)
-      // Single-part color for now; Task 16 colors per part.
-      const { pos, neg } = phaseShades(parts[0].color)
-      this.spheres.update(merged.positions, merged.psi, pos, neg, this.sphereRadius())
+      this.spheres.updateMany(results.map((r, i) => ({ positions: r.positions, psi: r.psi, ...phaseShades(parts[i].color) })), this.sphereRadius())
     }
   }
 
   private showGrids(parts: OrbitalPart[], grids: GridResponse[]): void {
-    // Single part for now; Task 16 shows one surface per subshell.
-    const { pos, neg } = phaseShades(parts[0].color)
-    const g = grids[0]
-    this.iso.update(g.positions, g.normals, g.signs, pos, neg)
+    this.iso.update(grids.map((g, i) => ({ key: parts[i].group, positions: g.positions, normals: g.normals, signs: g.signs, color: parts[i].color })))
   }
 
   dispose(): void {
@@ -179,16 +163,3 @@ function concatPositions(results: SampleResponse[]): Float32Array {
   return out
 }
 
-function mergeSamples(results: SampleResponse[]): { positions: Float32Array; psi: Float32Array; maxDensity: number } {
-  if (results.length === 1) return results[0]
-  const n = results.reduce((a, r) => a + r.psi.length, 0)
-  const positions = new Float32Array(n * 3), psi = new Float32Array(n)
-  let o = 0, maxDensity = 0
-  for (const r of results) {
-    positions.set(r.positions, o * 3)
-    psi.set(r.psi, o)
-    o += r.psi.length
-    maxDensity = Math.max(maxDensity, r.maxDensity)
-  }
-  return { positions, psi, maxDensity }
-}
