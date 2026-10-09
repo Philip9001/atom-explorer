@@ -19,9 +19,10 @@ function showFatal(message: string): void {
 try {
   const store = new Store()
   const worker = new Worker(new URL('./worker/orbital.worker.ts', import.meta.url), { type: 'module' })
-  const app = new App(viewport, store, worker)
+  const side = createSidePanel(sideHost, store)
+  const app = new App(viewport, store, worker, { sliceCanvas: side.sliceCanvas })
+  app.onUpdate = (info) => side.onUpdate(info)
   app.scene.onContextLost = () => showFatal('The graphics context was lost. Reload the page to continue.')
-  createSidePanel(sideHost, store)
   createControls(guiHost, store, {
     renderStill: () => console.info('Render still: not implemented yet'),
     resetCamera: () => app.scene.resetCamera(),

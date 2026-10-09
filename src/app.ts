@@ -3,6 +3,11 @@ import { SceneManager } from './render/scene'
 import { SphereCloud } from './render/sphereCloud'
 import { GlowCloud } from './render/glowCloud'
 import { IsoSurfaceSet } from './render/isosurface'
+import { Overlays } from './render/overlays'
+import { BohrView } from './render/bohr'
+import { sliceDensity } from './physics/slice'
+import { groundStateConfiguration, shellCounts } from './physics/configuration'
+import { paintSlice } from './ui/sliceInset'
 import { makeRadialSprite } from './render/sprite'
 import { phaseShades } from './render/colors'
 import { DEFAULTS } from './render/defaults'
@@ -36,22 +41,31 @@ export class App {
   readonly spheres: SphereCloud
   readonly glow: GlowCloud
   readonly iso: IsoSurfaceSet
+  readonly overlays: Overlays
+  readonly bohr = new BohrView()
   readonly nucleus: THREE.Mesh
+  /** Called after framing and after each completed rebuild, for side-panel plots. */
+  onUpdate?: (info: { parts: OrbitalPart[]; fitRadius: number }) => void
+  private parts: OrbitalPart[] = []
+  private sliceCanvas: HTMLCanvasElement
   /** Visible cloud radius used for sphere size, point size and framing. */
   fitRadius = 1
   private generation = 0
   private currentOrbitalKey = ''
   private t0 = 0
 
-  constructor(viewport: HTMLElement, store: Store, worker: Worker) {
+  constructor(viewport: HTMLElement, store: Store, worker: Worker, ui: { sliceCanvas: HTMLCanvasElement }) {
     this.store = store
+    this.sliceCanvas = ui.sliceCanvas
     this.scene = new SceneManager(viewport)
     this.client = new OrbitalWorkerClient(worker)
     this.spheres = new SphereCloud(150000)
     this.glow = new GlowCloud(500000, makeRadialSprite())
     this.iso = new IsoSurfaceSet()
+    this.overlays = new Overlays(ui.sliceCanvas)
     this.nucleus = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 }))
-    this.scene.content.add(this.spheres.mesh, this.glow.points, this.iso.group, this.nucleus)
+    this.scene.content.add(this.spheres.mesh, this.glow.points, this.iso.group, this.nucleus, this.overlays.group)
+    this.scene.scene.add(this.bohr.group)
     this.applyLook(Object.keys(store.state) as StateKey[])
     store.subscribe((_s, changed) => this.onChange(changed))
     this.scene.start()
@@ -84,6 +98,28 @@ export class App {
     if (has('colormap') || has('gamma')) this.glow.setColormap(COLORMAPS[s.colormap], s.gamma)
     if (has('pointSize')) this.glow.setPointSize(this.pointSize())
     if (has('showNucleus')) this.nucleus.visible = s.showNucleus && s.mode !== 'glow'
+    if (has('showAxes')) this.overlays.axes.visible = s.showAxes
+    if (has('showSlice') || has('colormap') || has('gamma')) { this.overlays.slice.visible = s.showSlice; this.paintSlice() }
+    if (has('bohr') || has('Z') || has('single')) this.updateBohr()
+  }
+
+  /** Repaint the slice canvas (side-panel inset and 3D plane) from the current parts. */
+  private paintSlice(): void {
+    const s = this.store.state
+    if (!s.showSlice) return
+    const size = 128
+    const field = sliceDensity(this.parts, size, this.fitRadius * 1.2)
+    paintSlice(this.sliceCanvas, field, size, s.colormap, s.gamma)
+    this.overlays.refreshSlice()
+  }
+
+  private updateBohr(): void {
+    const s = this.store.state
+    this.scene.content.visible = !s.bohr
+    this.bohr.group.visible = s.bohr
+    if (!s.bohr) { this.bohr.clear(); return }
+    const counts = s.single ? [1] : shellCounts(groundStateConfiguration(s.Z))
+    this.bohr.update(counts, this.fitRadius / (counts.length + 0.5))
   }
 
   sphereRadius(): number { return DEFAULTS.sphereRadiusFactor * this.fitRadius * this.store.state.sphereRadius }
@@ -95,6 +131,7 @@ export class App {
     this.client.cancelAll()
     const s = this.store.state
     const parts = deriveParts(s)
+    this.parts = parts
     const key = parts.map((p) => JSON.stringify(p.orbital)).join('|')
     const reframe = key !== this.currentOrbitalKey
     this.currentOrbitalKey = key
@@ -106,7 +143,7 @@ export class App {
       for (const budget of budgets) {
         const results = await Promise.all(parts.map((p) => this.client.sample(p.orbital, Math.max(MIN_PART_COUNT, Math.round(budget * p.weight)), 1)))
         if (gen !== this.generation) return
-        if (budget === PREVIEW_COUNT) this.frame(results, reframe)
+        if (budget === PREVIEW_COUNT) { this.frame(results, reframe); this.paintSlice(); this.onUpdate?.({ parts, fitRadius: this.fitRadius }) }
         if (s.mode !== 'iso') this.showSamples(parts, results)
         if (import.meta.env.DEV) console.debug(`[atom] ${budget} samples shown at ${(performance.now() - this.t0).toFixed(0)} ms`)
       }
@@ -129,7 +166,9 @@ export class App {
     this.nucleus.scale.setScalar(r * 1.5)
     this.scene.setAOParams({ radius: DEFAULTS.aoRadiusFactor * r, intensity: this.store.state.aoIntensity })
     this.glow.setPointSize(this.pointSize())
+    this.overlays.setExtent(this.fitRadius * 1.2)
     if (reframe) this.scene.fitCamera(this.fitRadius)
+    if (this.store.state.bohr) this.updateBohr()
   }
 
   private showSamples(parts: OrbitalPart[], results: SampleResponse[]): void {
@@ -146,6 +185,8 @@ export class App {
   }
 
   dispose(): void {
+    this.overlays.dispose()
+    this.bohr.dispose()
     this.iso.dispose()
     this.client.dispose()
     this.spheres.dispose()
