@@ -105,7 +105,7 @@ export class SceneManager {
   private applyBackground(): void {
     const color = new THREE.Color(this.opts.mode === 'glow' ? BACKGROUNDS.glow : BACKGROUNDS[this.theme])
     this.scene.background = color
-    this.scene.fog = new THREE.Fog(color, this.fitRadius * 3.5, this.fitRadius * 7)
+    this.scene.fog = new THREE.Fog(color, this.fitRadius * 4.7, this.fitRadius * 10) // camera sits at 4.2 r: only the far side fades, lightly
   }
 
   setAO(enabled: boolean): void {

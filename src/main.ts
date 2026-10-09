@@ -1,15 +1,11 @@
 import './style.css'
-import * as THREE from 'three'
-import { SceneManager, WebGLUnavailableError } from './render/scene'
-import { SphereCloud } from './render/sphereCloud'
-import { GlowCloud } from './render/glowCloud'
-import { makeRadialSprite } from './render/sprite'
-import { phaseShades } from './render/colors'
-import { OrbitalWorkerClient } from './worker/client'
-import { DEFAULTS } from './render/defaults'
-import { COLORMAPS } from './physics/colormaps'
+import { App } from './app'
+import { Store } from './state'
+import { WebGLUnavailableError } from './render/scene'
+import { createControls } from './ui/controls'
 
 const viewport = document.querySelector<HTMLElement>('#viewport')!
+const guiHost = document.querySelector<HTMLElement>('#gui')!
 
 function showFatal(message: string): void {
   const div = document.createElement('div')
@@ -18,67 +14,16 @@ function showFatal(message: string): void {
   viewport.appendChild(div)
 }
 
-/** Radius containing `q` of the sampled points: a better framing size than the extent box. */
-function percentileRadius(positions: Float32Array, q: number): number {
-  const n = positions.length / 3
-  const radii = new Float32Array(n)
-  for (let i = 0; i < n; i++) radii[i] = Math.hypot(positions[3 * i], positions[3 * i + 1], positions[3 * i + 2])
-  radii.sort()
-  return radii[Math.min(n - 1, Math.floor(q * n))]
-}
-
-async function boot(): Promise<void> {
-  const scene = new SceneManager(viewport)
-  scene.onContextLost = () => showFatal('The graphics context was lost. Reload the page to continue.')
-  const worker = new Worker(new URL('./worker/orbital.worker.ts', import.meta.url), { type: 'module' })
-  const client = new OrbitalWorkerClient(worker)
-  const cloud = new SphereCloud(150000)
-  const glow = new GlowCloud(500000, makeRadialSprite())
-  glow.points.visible = false
-  scene.content.add(cloud.mesh, glow.points)
-  const nucleus = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshStandardMaterial({ color: 0x333333 }))
-  scene.content.add(nucleus)
-  scene.start()
-  ;(window as unknown as { __scene: SceneManager }).__scene = scene
-
-  const orbital = { n: 3, l: 2, m: 0, Z: 1, real: true }
-  const { pos, neg } = phaseShades('#2a9d8f')
-  const t0 = performance.now()
-  let fitR = 1
-  for (const count of [5000, 50000]) {
-    const r = await client.sample(orbital, count, 1)
-    if (count === 5000) fitR = percentileRadius(r.positions, 0.95)
-    const radius = DEFAULTS.sphereRadiusFactor * fitR
-    cloud.update(r.positions, r.psi, pos, neg, radius)
-    nucleus.scale.setScalar(radius * 1.5)
-    if (count === 5000) {
-      scene.fitCamera(fitR)
-      scene.setAOParams({ radius: DEFAULTS.aoRadiusFactor * radius, intensity: DEFAULTS.aoIntensity })
-    }
-    console.log(`N=${count} ready at ${(performance.now() - t0).toFixed(0)} ms`)
-  }
-
-  window.addEventListener('keydown', async (e) => {
-    if (e.key === '2') {
-      scene.setMode('glow')
-      scene.setBloom({ strength: DEFAULTS.bloomStrength, radius: DEFAULTS.bloomRadius, threshold: DEFAULTS.bloomThreshold })
-      cloud.mesh.visible = false
-      nucleus.visible = false
-      glow.points.visible = true
-      const r = await client.sample(orbital, 300000, 2)
-      glow.setPointSize(DEFAULTS.pointSizeFactor * fitR)
-      glow.update(r.positions, r.psi, r.maxDensity, COLORMAPS.inferno, DEFAULTS.glowGamma)
-    } else if (e.key === '1') {
-      scene.setMode('spheres')
-      cloud.mesh.visible = true
-      nucleus.visible = true
-      glow.points.visible = false
-    }
-  })
-}
-
 try {
-  boot().catch((e) => showFatal(String(e)))
+  const store = new Store()
+  const worker = new Worker(new URL('./worker/orbital.worker.ts', import.meta.url), { type: 'module' })
+  const app = new App(viewport, store, worker)
+  app.scene.onContextLost = () => showFatal('The graphics context was lost. Reload the page to continue.')
+  createControls(guiHost, store, {
+    renderStill: () => console.info('Render still: not implemented yet'),
+    resetCamera: () => app.scene.resetCamera(),
+  })
+  ;(window as unknown as { __app: App }).__app = app
 } catch (e) {
   if (e instanceof WebGLUnavailableError) showFatal('This app needs WebGL 2, which your browser or GPU does not provide. Try Chrome or Firefox with hardware acceleration enabled.')
   else throw e
