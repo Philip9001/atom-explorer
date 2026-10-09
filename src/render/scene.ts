@@ -14,7 +14,7 @@ function createRenderer(container: HTMLElement): THREE.WebGLRenderer {
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1))
     renderer.setSize(container.clientWidth, container.clientHeight)
-    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMapping = THREE.NoToneMapping
     renderer.toneMappingExposure = 1
     container.appendChild(renderer.domElement)
     return renderer
@@ -52,6 +52,7 @@ export class SceneManager {
       this.onContextLost?.()
     })
     this.camera = new THREE.PerspectiveCamera(40, this.aspect(), 0.01, 1000)
+    this.camera.up.set(0, 0, 1) // orbital symmetry axis (z) is vertical, as in textbook figures
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
     this.controls.enableDamping = true
     this.controls.dampingFactor = 0.12
@@ -89,6 +90,8 @@ export class SceneManager {
   setMode(mode: RenderMode): void {
     if (this.opts.mode === mode) return
     this.opts.mode = mode
+    // Glow mode relies on filmic tone mapping to roll off additive highlights; flat colors elsewhere.
+    this.renderer.toneMapping = mode === 'glow' ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping
     this.rebuildComposer()
     this.applyBackground()
   }
@@ -149,8 +152,8 @@ export class SceneManager {
   }
 
   resetCamera(): void {
-    const d = this.fitRadius * 2.2
-    this.camera.position.set(d * 0.55, d * 0.4, d * 0.75)
+    const d = this.fitRadius * 4.2
+    this.camera.position.set(d * 0.72, d * 0.5, d * 0.48)
     this.controls.target.set(0, 0, 0)
     this.controls.update()
   }
